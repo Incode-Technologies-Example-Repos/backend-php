@@ -92,6 +92,77 @@ function webhook() {
     file_put_contents('debug.log', json_encode($response, JSON_PRETTY_PRINT)."\n", FILE_APPEND | LOCK_EX);
 }
 
+// Webhook to receive onboarding status, configure it in
+// incode dasboard > settings > webhook > onboarding status
+// This endpoint will auto-approve(create an identity) for
+// any sessions that PASS.
+function approve() {
+    // We receive raw json data
+    $payload = file_get_contents('php://input');
+    $data = json_decode($payload, true); // Decode JSON payload
+    if($data['onboardingStatus']=="ONBOARDING_FINISHED"){
+        $Client = new Client(['base_uri' => $_ENV['API_URL']]);
+        // Admin Token + ApiKey are needed for approving and fetching scores
+        $adminHeaders = [
+            'Content-Type' => "application/json",
+            'x-api-key' => $_ENV['API_KEY'],
+            'X-Incode-Hardware-Id' => $_ENV['ADMIN_TOKEN'],
+            'api-version' => '1.0'
+        ];
+        $scoreUrl='/omni/get/score?id='.urlEncode($data['interviewId']);
+        $Request = new Request('GET', $scoreUrl, $adminHeaders);
+        $Response = $Client->sendAsync($Request)->wait();
+        $onboardingScore = json_decode($Response->getBody());
+
+        if($onboardingScore->overall->status==='OK'){
+            $approveURL='/omni/process/approve?interviewId='.urlEncode($data['interviewId']);
+            $Request = new Request('POST', $approveURL, $adminHeaders);
+            $Response = $Client->sendAsync($Request)->wait();
+            $identityData = json_decode($Response->getBody());
+
+            $response = array(
+                'timestamp' => date("Y-m-d H:i:s"),
+                'success' => true,
+                'data' => $identityData
+            );
+            // This would return something like this:
+            // {
+            //   timestamp: '2024-01-04 00:38:28',
+            //   success: true,
+            //   data: {
+            //     success: true,
+            //     uuid: '6595c84ce69d469f69ad39fb',
+            //     token: 'eyJhbGciOiJ4UzI1NiJ9.eyJleHRlcm5hbFVzZXJJZCI6IjY1OTVjODRjZTY5ZDk2OWY2OWF33kMjlmYiIsInJvbGUiOiJBQ0NFU5MiLCJrZXlSZWYiOiI2MmZlNjQ3ZTJjODJlOTVhZDNhZTRjMzkiLCJleHAiOjE3MTIxOTExMDksImlhdCI6MTcwNDMyODcwOX0.fbhlcTQrp-h-spgxKU2J7wpEBN4I4iOYG5CBwuQKPLQ72',
+            //     totalScore: 'OK',
+            //     existingCustomer: false
+            //   }
+            // }
+            // UUID: You can save the generated uuid of your user to link your user with our systems.
+            // Token: Is long lived and could be used to do calls in the name of the user if needed.
+            // Existing Customer: Will return true in case the user was already in the database, in such case we are returning the UUID of the already existing user.  
+            echo json_encode($response);
+        } else {
+            $response = array(
+                'timestamp' => date("Y-m-d H:i:s"),
+                'success' => false,
+                'error' => "Session didn't PASS, identity was not created"
+            );
+            echo json_encode($response);
+        }
+    } else {
+        // Process received data (for demonstration, just returning the received payload
+        // and include the timestamp)
+        $response = array(
+            'timestamp' => date("Y-m-d H:i:s"),
+            'data' => $data
+        );
+        echo json_encode($response);
+    }
+    // Write to a log so you can debug it. Use the command `tail -f debug.log` to watch the file in realtime.
+    file_put_contents('debug.log', json_encode($response, JSON_PRETTY_PRINT)."\n", FILE_APPEND | LOCK_EX);
+}
+
+
 // Allow from any origin
 if (isset($_SERVER['HTTP_ORIGIN'])) {
     header("Access-Control-Allow-Origin: {$_SERVER['HTTP_ORIGIN']}");
@@ -115,6 +186,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ( str_starts_with($_SERVER['REQUEST_URI'],'/webhook') ) {
         webhook();
+        exit(0);
+    } elseif ( str_starts_with($_SERVER['REQUEST_URI'],'/approve') ) {
+        approve();
         exit(0);
     }
 } else if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
