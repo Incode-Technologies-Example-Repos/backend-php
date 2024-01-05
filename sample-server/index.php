@@ -84,6 +84,7 @@ function webhook() {
     // and include the timestamp)
     $response = array(
         'timestamp' => date("Y-m-d H:i:s"),
+        'success' => true
         'data' => $data
     );
     echo json_encode($response);
@@ -154,6 +155,7 @@ function approve() {
         // and include the timestamp)
         $response = array(
             'timestamp' => date("Y-m-d H:i:s"),
+            'success' => true
             'data' => $data
         );
         echo json_encode($response);
