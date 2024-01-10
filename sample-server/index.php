@@ -7,15 +7,17 @@ use GuzzleHttp\Psr7\Request;
 $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
 $dotenv->load();
 
+$defaultHeader = [
+    'Accept' => 'application/json',
+    'Content-Type' => "application/json",
+    'api-version' => '1.0',
+    'x-api-key' => $_ENV['API_KEY']
+];
+
 // Call Incode's `omni/start` API to create an Incode session which will include a
 // token in the JSON response.
 function start() {
-    $header = [
-        'Accept' => 'application/json',
-        'Content-Type' => "application/json",
-        'api-version' => '1.0',
-        'x-api-key' => $_ENV['API_KEY']
-    ];
+    global $defaultHeader;
     $body = [
         'configurationId' => $_ENV['FLOW_ID'],
         'countryCode' => 'ALL',
@@ -23,7 +25,7 @@ function start() {
     ];
 
     $Client = new Client(['base_uri' => $_ENV['API_URL']]);
-    $Request = new Request('POST', '/omni/start', $header, json_encode($body));
+    $Request = new Request('POST', '/omni/start', $defaultHeader, json_encode($body));
     $Response = $Client->sendAsync($Request)->wait();
     
     $Data = json_decode($Response->getBody());
@@ -34,12 +36,7 @@ function start() {
 // Calls incodes `omni/start` and then with the token calls `0/omni/onboarding-url`
 // to retrieve the unique onboarding-url for the newly created session.
 function onboardingUrl() {
-    $header = [
-        'Accept' => 'application/json',
-        'Content-Type' => "application/json",
-        'api-version' => '1.0',
-        'x-api-key' => $_ENV['API_KEY']
-    ];
+    global $defaultHeader;
     $body = [
         'configurationId' => $_ENV['FLOW_ID'],
         'countryCode' => 'ALL',
@@ -53,7 +50,7 @@ function onboardingUrl() {
     }
 
     $Client = new Client(['base_uri' => $_ENV['API_URL']]);
-    $Request = new Request('POST', '/omni/start', $header, json_encode($body));
+    $Request = new Request('POST', '/omni/start', $defaultHeader, json_encode($body));
     $Response = $Client->sendAsync($Request)->wait();
     $startData = json_decode($Response->getBody());
     
@@ -79,12 +76,12 @@ function webhook() {
     // We receive raw json data
     $payload = file_get_contents('php://input');
     $data = json_decode($payload, true); // Decode JSON payload
-    
+    var_dump($data);
     // Process received data (for demonstration, just returning the received payload
     // and include the timestamp)
     $response = array(
         'timestamp' => date("Y-m-d H:i:s"),
-        'success' => true
+        'success' => true,
         'data' => $data
     );
     echo json_encode($response);
@@ -155,13 +152,34 @@ function approve() {
         // and include the timestamp)
         $response = array(
             'timestamp' => date("Y-m-d H:i:s"),
-            'success' => true
+            'success' => true,
             'data' => $data
         );
         echo json_encode($response);
     }
     // Write to a log so you can debug it. Use the command `tail -f debug.log` to watch the file in realtime.
     file_put_contents('debug.log', json_encode($response, JSON_PRETTY_PRINT)."\n", FILE_APPEND | LOCK_EX);
+}
+
+//  Receives the information about a faceMatch attempt and verifies if it was correct and has not been tampered.
+function auth() {
+    global $defaultHeader;
+    // We receive raw json data
+    $payload = file_get_contents('php://input');
+    $data = json_decode($payload, true); // Decode JSON payload
+
+    $body = [
+        'transactionId' => $data["transactionId"],
+        'token' => $data["token"],
+        'interviewToken' => $data["interviewToken"],
+    ];
+
+    $Client = new Client(['base_uri' => $_ENV['API_URL']]);
+    $Request = new Request('POST', '/omni/auth-attempt/verify', $defaultHeader, json_encode($body));
+    $Response = $Client->sendAsync($Request)->wait();
+    
+    $Data = json_decode($Response->getBody());
+    echo json_encode($Data);
 }
 
 
@@ -191,6 +209,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit(0);
     } elseif ( str_starts_with($_SERVER['REQUEST_URI'],'/approve') ) {
         approve();
+        exit(0);
+    } elseif ( str_starts_with($_SERVER['REQUEST_URI'],'/auth') ) {
+        auth();
         exit(0);
     }
 } else if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
