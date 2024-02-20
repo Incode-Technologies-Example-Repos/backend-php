@@ -40,14 +40,10 @@ function onboardingUrl() {
     $body = [
         'configurationId' => $_ENV['FLOW_ID'],
         'countryCode' => 'ALL',
-        'language' => 'en-US'
+        'language' => 'en-US',
+        // 'redirectionUrl' => 'https://example.com?custom_parameter=some+value',
+        // 'externalCustomerId' => 'the id of the customer in your system',
     ];
-    
-    // Enable the server to receive the url to redirect at the end of the flow
-    $redirectionUrl = isset($_GET['redirectionUrl'])?$_GET['redirectionUrl']:'';
-    if($redirectionUrl !=='') { 
-        $body['redirectionUrl'] = $redirectionUrl;
-    }
 
     $Client = new Client(['base_uri' => $_ENV['API_URL']]);
     $Request = new Request('POST', '/omni/start', $defaultHeader, json_encode($body));
