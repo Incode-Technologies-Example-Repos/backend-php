@@ -21,7 +21,9 @@ function start() {
     $body = [
         'configurationId' => $_ENV['FLOW_ID'],
         'countryCode' => 'ALL',
-        'language' => 'en-US'
+        'language' => 'en-US',
+        // 'redirectionUrl' => 'https://example.com?custom_parameter=some+value',
+        // 'externalCustomerId' => 'the id of the customer in your system',
     ];
 
     $Client = new Client(['base_uri' => $_ENV['API_URL']]);
