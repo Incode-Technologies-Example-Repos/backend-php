@@ -1,1 +1,4 @@
-.DS_Store
+.env
+vendor
+composer.phar
+debug.log
